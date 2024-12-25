@@ -11,10 +11,11 @@ load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-api_endpoint = f"https://gateway.thegraph.com/api/{SECRET_KEY}/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g"
+api_endpoint_v3 = f"https://gateway.thegraph.com/api/{SECRET_KEY}/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g"
+api_endpoint_v2 = f"https://gateway.thegraph.com/api/{SECRET_KEY}/subgraphs/id/8wR23o1zkS4gpLqLNU4kG3JHYVucqGyopL5utGxP2q1N"
 
 
-def run_query_reserves_statistics(
+def run_query_reserves_statistics_protocol_v3(
     size: int, offset: int, timestamp_min: int, timestamp_max: int
 ) -> dict:
     query = f"""
@@ -51,7 +52,43 @@ def run_query_reserves_statistics(
             \u007d
         \u007d
     """
-    return run_query(api_endpoint, query)
+    return run_query(api_endpoint_v3, query)
+
+
+def run_query_reserves_statistics_protocol_v2(
+    size: int, offset: int, timestamp_min: int, timestamp_max: int
+) -> dict:
+    query = f"""
+        \u007b
+            reserveParamsHistoryItems(
+                first: {size},
+                skip: {offset},
+                where: \u007b timestamp_gt: {timestamp_min}, timestamp_lt: {timestamp_max} \u007d
+            ) \u007b
+                reserve \u007b
+                    name
+                    decimals
+                \u007d
+                timestamp
+                variableBorrowRate
+                variableBorrowIndex
+                stableBorrowRate
+                averageStableBorrowRate
+                liquidityIndex
+                liquidityRate
+                totalLiquidity
+                totalATokenSupply
+                availableLiquidity
+                totalCurrentVariableDebt
+                totalScaledVariableDebt
+                totalPrincipalStableDebt
+                utilizationRate
+                priceInEth
+                priceInUsd
+            \u007d
+        \u007d
+    """
+    return run_query(api_endpoint_v2, query)
 
 
 def fetch_reserves_data(
@@ -59,6 +96,7 @@ def fetch_reserves_data(
     n_iter: int,
     timestamp_min: int,
     timestamp_max: int,
+    version_2: bool = False,
     verbose: bool = False,
 ) -> DataFrame:
     reserves_table = pd.DataFrame()
@@ -66,12 +104,20 @@ def fetch_reserves_data(
         if verbose:
             if iter % 10 == 0:
                 print(f"      [Iteration {iter + 1}/{n_iter}]")
-        query_output = run_query_reserves_statistics(
-            size=size,
-            offset=iter * size,
-            timestamp_min=timestamp_min,
-            timestamp_max=timestamp_max,
-        )
+        if version_2:
+            query_output = run_query_reserves_statistics_protocol_v2(
+                size=size,
+                offset=iter * size,
+                timestamp_min=timestamp_min,
+                timestamp_max=timestamp_max,
+            )
+        else:
+            query_output = run_query_reserves_statistics_protocol_v3(
+                size=size,
+                offset=iter * size,
+                timestamp_min=timestamp_min,
+                timestamp_max=timestamp_max,
+            )
         current_reserves_table = pd.json_normalize(
             query_output["data"]["reserveParamsHistoryItems"]
         )
@@ -83,7 +129,7 @@ def fetch_reserves_data(
 
 
 def convert_units_and_get_hourly_granularity(
-    reserves_table: DataFrame, verbose: bool = True
+    reserves_table: DataFrame, version_2: bool = False, verbose: bool = True
 ) -> DataFrame:
     reserves_history = reserves_table.copy()
     reserves_history = reserves_history.reset_index(drop=True)
@@ -101,21 +147,33 @@ def convert_units_and_get_hourly_granularity(
         }
     )
 
-    reserves_history = reserves_history.astype(
-        {
+    if version_2:
+        columns_types = {
+            "timestamp": np.int64,
+            "utilizationRate": float,
+            "reserve_name": str,
+        }
+    else:
+        columns_types = {
             "timestamp": np.int64,
             "utilizationRate": float,
             "reserve_name": str,
             "reserve_pool": str,
         }
+
+    reserves_history = reserves_history.astype(
+        columns_types
     )
 
     # Change units
     reserves_history.reserve_decimals = reserves_history.reserve_decimals.apply(int)
-    reserves_history.accruedToTreasury = (
-        reserves_history.accruedToTreasury.apply(int)
-        / 10**reserves_history.reserve_decimals
-    )
+
+    if not version_2:
+        reserves_history.accruedToTreasury = (
+            reserves_history.accruedToTreasury.apply(int)
+            / 10**reserves_history.reserve_decimals
+        )
+
     reserves_history.availableLiquidity = (
         reserves_history.availableLiquidity.apply(int)
         / 10**reserves_history.reserve_decimals
