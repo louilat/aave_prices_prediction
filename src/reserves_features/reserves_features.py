@@ -161,9 +161,7 @@ def convert_units_and_get_hourly_granularity(
             "reserve_pool": str,
         }
 
-    reserves_history = reserves_history.astype(
-        columns_types
-    )
+    reserves_history = reserves_history.astype(columns_types)
 
     # Change units
     reserves_history.reserve_decimals = reserves_history.reserve_decimals.apply(int)
