@@ -29,4 +29,4 @@ jobs:
         continue-on-error: true
       - name: Run tests
         run: |
-          pytest tests.py --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
+          pytest tests/reserves_features/test_reserves_features.py --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
