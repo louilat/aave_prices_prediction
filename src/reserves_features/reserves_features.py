@@ -218,7 +218,7 @@ def convert_units_and_get_hourly_granularity(
     reserves_history.datetime = reserves_history.datetime.dt.round("h")
     reserves_history_last_data_per_hour = reserves_history.groupby(
         ["reserve_name", "datetime"]
-    )["timestamp"].transform(max)
+    )["timestamp"].transform("max")
     reserves_history_last_data_per_hour_mask = (
         reserves_history.timestamp == reserves_history_last_data_per_hour
     )
@@ -265,6 +265,18 @@ def fill_missing_data(
         reserve_output = base_output.merge(
             reserve_data, how="left", left_on="regular_datetime", right_on="datetime"
         )
-        reserve_output = reserve_output.fillna(method="ffill")
+        reserve_output = reserve_output.infer_objects(copy=False).ffill()
+
+        # Add a "filled_value" flag
+        true_values = DataFrame({
+            "regular_datetime": output_datetimes_list,
+            "filled_value": 1
+        })
+        reserve_output = reserve_output.merge(
+            true_values,
+            how="left",
+            on="regular_datetime"
+        )
+        reserve_output[["filled_value"]] = reserve_output[["filled_value"]].fillna(value=0)
         regular_outputs_list.append(reserve_output)
     return pd.concat(regular_outputs_list)
