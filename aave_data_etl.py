@@ -85,7 +85,9 @@ for month in months_to_extract:
 
     try:
         csv_buffer = io.StringIO()
-        reserves_history_hourly_selected_assets_completed.to_csv(csv_buffer, index=False)
+        reserves_history_hourly_selected_assets_completed.to_csv(
+            csv_buffer, index=False
+        )
         client_s3.put_object(
             Body=csv_buffer.getvalue(),
             Bucket="llatournerie",

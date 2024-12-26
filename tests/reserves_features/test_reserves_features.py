@@ -348,9 +348,28 @@ def test_fill_missing_data(reserves_history_hourly_selected_assets):
     completed_reserves_history = completed_reserves_history.set_index("datetime")
 
     # Existing value
-    assert completed_reserves_history.loc[Timestamp("2024-01-06 03:00:00"), "reserve_name"] == "Dai Stablecoin"
-    assert np.round(completed_reserves_history.loc[Timestamp("2024-01-06 03:00:00"), "variableBorrowRate"], 2) == 0.05
-    assert np.round(completed_reserves_history.loc[Timestamp("2024-01-06 03:00:00"), "availableLiquidity"], 2) == 9044475.84
-    
+    assert (
+        completed_reserves_history.loc[Timestamp("2024-01-06 03:00:00"), "reserve_name"]
+        == "Dai Stablecoin"
+    )
+    assert (
+        np.round(
+            completed_reserves_history.loc[
+                Timestamp("2024-01-06 03:00:00"), "variableBorrowRate"
+            ],
+            2,
+        )
+        == 0.05
+    )
+    assert (
+        np.round(
+            completed_reserves_history.loc[
+                Timestamp("2024-01-06 03:00:00"), "availableLiquidity"
+            ],
+            2,
+        )
+        == 9044475.84
+    )
+
     # Missing value
     assert True

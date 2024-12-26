@@ -268,15 +268,14 @@ def fill_missing_data(
         reserve_output = reserve_output.infer_objects(copy=False).ffill()
 
         # Add a "filled_value" flag
-        true_values = DataFrame({
-            "regular_datetime": output_datetimes_list,
-            "filled_value": 1
-        })
-        reserve_output = reserve_output.merge(
-            true_values,
-            how="left",
-            on="regular_datetime"
+        true_values = DataFrame(
+            {"regular_datetime": output_datetimes_list, "filled_value": 1}
         )
-        reserve_output[["filled_value"]] = reserve_output[["filled_value"]].fillna(value=0)
+        reserve_output = reserve_output.merge(
+            true_values, how="left", on="regular_datetime"
+        )
+        reserve_output[["filled_value"]] = reserve_output[["filled_value"]].fillna(
+            value=0
+        )
         regular_outputs_list.append(reserve_output)
     return pd.concat(regular_outputs_list)
