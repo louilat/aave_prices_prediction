@@ -398,3 +398,12 @@ def test_fill_missing_data(reserves_history_hourly_selected_assets):
         )
         == 88247688.40
     )
+
+    assert (
+        completed_reserves_history.loc[Timestamp("2024-01-06 20:00:00"), "true_value"]
+        == 0
+    )
+    assert (
+        completed_reserves_history.loc[Timestamp("2024-01-06 03:00:00"), "true_value"]
+        == 1
+    )

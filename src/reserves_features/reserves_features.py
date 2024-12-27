@@ -269,7 +269,7 @@ def fill_missing_data(
 
         # Add a "filled_value" flag
         true_values = DataFrame(
-            {"regular_datetime": output_datetimes_list, "true_value": 1}
+            {"regular_datetime": reserve_data.datetime, "true_value": 1}
         )
         reserve_output = reserve_output.merge(
             true_values, how="left", on="regular_datetime"
