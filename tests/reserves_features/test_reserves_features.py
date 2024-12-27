@@ -343,9 +343,11 @@ def test_fill_missing_data(reserves_history_hourly_selected_assets):
     # Output shape
     assert completed_reserves_history.columns.tolist() == [
         "regular_datetime"
-    ] + reserves_history_hourly_selected_assets.columns.tolist() + ["filled_value"]
+    ] + reserves_history_hourly_selected_assets.columns.tolist()[:-1] + ["true_value"]
     assert len(completed_reserves_history) == 20
-    completed_reserves_history = completed_reserves_history.set_index("datetime")
+    completed_reserves_history = completed_reserves_history.set_index(
+        "regular_datetime"
+    )
 
     # Existing value
     assert (
@@ -372,4 +374,27 @@ def test_fill_missing_data(reserves_history_hourly_selected_assets):
     )
 
     # Missing value
-    assert True
+    assert (
+        completed_reserves_history.loc[Timestamp("2024-01-06 20:00:00"), "reserve_name"]
+        == "Dai Stablecoin"
+    )
+
+    assert (
+        np.round(
+            completed_reserves_history.loc[
+                Timestamp("2024-01-06 20:00:00"), "variableBorrowRate"
+            ],
+            2,
+        )
+        == 0.09
+    )
+
+    assert (
+        np.round(
+            completed_reserves_history.loc[
+                Timestamp("2024-01-06 20:00:00"), "totalScaledVariableDebt"
+            ],
+            2,
+        )
+        == 88247688.40
+    )
