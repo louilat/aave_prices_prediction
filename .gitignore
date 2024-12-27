@@ -1,3 +1,6 @@
 .env
 *.ipynb
 env/*
+draftenv/*
+.vscode/*
+*.pyc
