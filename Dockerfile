@@ -7,6 +7,5 @@ RUN apt-get -y update && \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY api ./api
-RUN chmod +x ./api/run.sh
 EXPOSE 8000
 CMD ["fastapi", "run", "./api/aave_data_api.py"]
