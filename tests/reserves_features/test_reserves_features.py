@@ -2,6 +2,9 @@ import pytest
 from ...src.reserves_features.reserves_features import fill_missing_data
 from pandas import Timestamp, DataFrame
 import numpy as np
+from ...src.utils.logger import Logger
+
+logger = Logger()
 
 
 @pytest.fixture
@@ -338,7 +341,8 @@ def reserves_history_hourly_selected_assets():
 
 def test_fill_missing_data(reserves_history_hourly_selected_assets):
     completed_reserves_history = fill_missing_data(
-        reserves_history_hourly_selected_assets
+        reserves_history_hourly_selected_assets,
+        logger=logger,
     )
     # Output shape
     assert completed_reserves_history.columns.tolist() == [

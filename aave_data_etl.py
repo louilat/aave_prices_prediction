@@ -17,6 +17,11 @@ from src.reserves_features.reserves_features_quality_check import (
     add_clean_data,
 )
 
+from src.utils.logger import Logger
+
+logger = Logger()
+
+
 load_dotenv()
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -24,13 +29,14 @@ AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
 
 
 # Run Parameters
-output_path = "aave-data/experiments/"
-file_name = "reserves_history_hourly_selected_assets_completed_try"
-version_2 = False
+output_path = "aave-data/data-prod/aave-v2/reserves-features/"
+file_name = "reserves_history_hourly_selected_assets_completed"
+version_2 = True
 max_queries_number = 300
-year = 2024
-months_to_extract = [1]
-print("Starting ETL")
+year = 2020
+months_to_extract = [12]
+logger.logs.info("Starting ETL")
+
 
 for month in months_to_extract:
     start_date = datetime(year, month, 1, tzinfo=timezone.utc)
@@ -38,14 +44,14 @@ for month in months_to_extract:
     end_date = datetime(next_date.year, next_date.month, 1, tzinfo=timezone.utc)
     timestamp_min = datetime.timestamp(start_date)
     timestamp_max = datetime.timestamp(end_date)
-    print(f"min_date: {start_date}, max_date: {end_date}")
-    print(
+    logger.logs.info(f"min_date: {start_date}, max_date: {end_date}")
+    logger.logs.info(
         f"Starting data extraction with version_2 = {version_2} timestamp_min = {timestamp_min}, timestamp_max = {timestamp_max}"
     )
 
-    print("Step 1 - Extracting reserves' features")
+    logger.logs.info("Step 1 - Extracting reserves' features")
 
-    print("   [1] - Querying Aave Protocol subgraph from Thegraph...")
+    logger.logs.info("   [1] - Querying Aave Protocol subgraph from Thegraph...")
     reserves_table = fetch_reserves_data(
         size=1000,
         n_iter=max_queries_number,
@@ -55,12 +61,16 @@ for month in months_to_extract:
         timestamp_max=timestamp_max,
     )
 
-    print("   [2] - Cleaning reserves_table dataset (units and granularity)...")
+    logger.logs.info(
+        "   [2] - Cleaning reserves_table dataset (units and granularity)..."
+    )
     reserves_history_hourly = convert_units_and_get_hourly_granularity(
-        reserves_table=reserves_table, version_2=version_2
+        reserves_table=reserves_table,
+        version_2=version_2,
+        logger=logger,
     )
 
-    print("   [3] - Selecting main assets...")
+    logger.logs.info("   [3] - Selecting main assets...")
     assets_list = [
         "Wrapped Ether",
         "Wrapped BTC",
@@ -74,31 +84,38 @@ for month in months_to_extract:
         reserves_history_hourly.reserve_name.isin(assets_list)
     ]
 
-    print("   [4] - Filling the missing rows with the latest available data...")
+    logger.logs.info(
+        "   [4] - Filling the missing rows with the latest available data..."
+    )
     reserves_history_hourly_selected_assets_completed = fill_missing_data(
-        reserves_history_hourly_selected_assets
+        reserves_history_hourly_selected_assets,
+        logger=logger,
     )
 
-    print("   [5] - Run quality checks...")
+    logger.logs.info("   [5] - Run quality checks...")
     try:
         outcome, score = reserve_data_quality_check(
-            reserves_history_hourly_selected_assets_completed
+            reserves_history_hourly_selected_assets_completed,
+            version_2=version_2,
         )
         if not outcome:
-            print(f"WARNING ! Quality check failed, with score: {score}")
+            logger.logs.info(f"   WARNING ! Quality check failed, with score: {score}")
         else:
-            print(f"Passed quality check successfully, with score: {score}")
+            logger.logs.info(
+                f"   Passed quality check successfully, with score: {score}"
+            )
     except AssertionError as e:
-        print(f"WARNING ! Quality check failed with FATAL ERROR: {e}")
+        logger.logs.info(f"   WARNING ! Quality check failed with FATAL ERROR: {e}")
 
     if version_2:
-        print("   [6] - Consolidate data...")
+        logger.logs.info("   [6] - Consolidate data...")
         reserves_history_hourly_selected_assets_completed = add_clean_data(
             reserves_history_hourly_selected_assets_completed,
             verbose=True,
+            logger=logger,
         )
 
-    print("Uploading files to s3...")
+    logger.logs.info("Uploading files to s3...")
     client_s3 = boto3.client(
         "s3",
         endpoint_url="https://" + "minio.lab.sspcloud.fr",
@@ -117,8 +134,14 @@ for month in months_to_extract:
             Bucket="llatournerie",
             Key=output_path + file_name + f"_{year}-{month}" + ".csv",
         )
-        print(f"   --> Outputs successfully generated at {output_path}")
+        logger.logs.info(f"   --> Outputs successfully generated at {output_path}")
     except Exception as e:
-        print(f"Failed to upload files to s3, with error: {e}")
+        logger.logs.info(f"Failed to upload files to s3, with error: {e}")
 
-print("Done !")
+client_s3.put_object(
+    Body=logger.buffer.getvalue(),
+    Bucket="llatournerie",
+    Key=output_path + f"logfile_{year}.txt",
+)
+
+logger.logs.info("Done !")

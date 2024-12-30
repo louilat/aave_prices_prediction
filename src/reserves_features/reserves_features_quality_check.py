@@ -3,10 +3,14 @@
 import pandas as pd
 from pandas import DataFrame
 import numpy as np
+from ..utils.logger import Logger
+
+logger = Logger()
 
 
 def reserve_data_quality_check(
     hourly_asset_reserve_completed: DataFrame,
+    version_2: bool = False,
 ) -> tuple[bool, float]:
     """Assesses the quality of the extracted data by checking the following conditions:
     1. The size of the dataframe should be either 30*24, 31*24, 28*24 or 29*24 (fatal)
@@ -53,28 +57,33 @@ def reserve_data_quality_check(
     rate_score = (np.mean(borrow_rate_mask) + np.mean(liquidity_rate_mask)) / 2
 
     # Condition 5
-    balance_equilibrium_threshold = 0.05 * (
-        hourly_asset_reserve_completed.totalATokenSupply
-        + hourly_asset_reserve_completed.accruedToTreasury
-    )
-    balance_equilibrium = (
-        hourly_asset_reserve_completed.totalATokenSupply
-        + hourly_asset_reserve_completed.accruedToTreasury
-        - hourly_asset_reserve_completed.availableLiquidity
-        - hourly_asset_reserve_completed.totalCurrentVariableDebt
-    )
+    if not version_2:
+        balance_equilibrium_threshold = 0.05 * (
+            hourly_asset_reserve_completed.totalATokenSupply
+            + hourly_asset_reserve_completed.accruedToTreasury
+        )
+        balance_equilibrium = (
+            hourly_asset_reserve_completed.totalATokenSupply
+            + hourly_asset_reserve_completed.accruedToTreasury
+            - hourly_asset_reserve_completed.availableLiquidity
+            - hourly_asset_reserve_completed.totalCurrentVariableDebt
+        )
 
-    balance_score = np.mean(
-        np.abs(balance_equilibrium) <= balance_equilibrium_threshold
-    )
+        balance_score = np.mean(
+            np.abs(balance_equilibrium) <= balance_equilibrium_threshold
+        )
 
-    quality_score = float((index_score + rate_score + balance_score) / 3)
+        quality_score = float((index_score + rate_score + balance_score) / 3)
 
-    return quality_score > 0.95, quality_score
+        return quality_score > 0.95, quality_score
+
+    else:
+        quality_score = float((index_score + rate_score) / 2)
+        return quality_score > 0.95, quality_score
 
 
 def add_clean_data(
-    hourly_asset_reserve_completed: DataFrame, verbose: bool = False
+    hourly_asset_reserve_completed: DataFrame, logger: Logger, verbose: bool = False
 ) -> DataFrame:
     """
     Add extra columns to the hourly_asset_reserve_completed with consolidated values.
@@ -113,8 +122,10 @@ def add_clean_data(
                 != clean_reserve_data.liquidityIndex
             )
         )
-        print(f"Fixed {wrong_borrow_indexes} borrow index values")
-        print(f"Fixed {wrong_liquidity_indexes} liquidity index values")
+        logger.logs.info(f"      --> Fixed {wrong_borrow_indexes} borrow index values")
+        logger.logs.info(
+            f"      --> Fixed {wrong_liquidity_indexes} liquidity index values"
+        )
 
     # Fix rates
     clean_reserve_data["fixed_variableBorrowRate"] = np.clip(
@@ -142,7 +153,11 @@ def add_clean_data(
                 != clean_reserve_data.fixed_utilizationRate
             )
         )
-        print(f"Fixed {wrong_borrow_rates} borrow rate values")
-        print(f"Fixed {wrong_liquidity_rates} liquidity rate values")
-        print(f"Fixed {wrong_utilization_rates} utilization rate values")
+        logger.logs.info(f"      --> Fixed {wrong_borrow_rates} borrow rate values")
+        logger.logs.info(
+            f"      --> Fixed {wrong_liquidity_rates} liquidity rate values"
+        )
+        logger.logs.info(
+            f"      --> Fixed {wrong_utilization_rates} utilization rate values"
+        )
     return clean_reserve_data
