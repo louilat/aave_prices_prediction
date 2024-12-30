@@ -9,10 +9,10 @@ from ..utils.utils import run_query
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
-api_endpoint_v3 = f"https://gateway.thegraph.com/api/{SECRET_KEY}/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g"
-api_endpoint_v2 = f"https://gateway.thegraph.com/api/{SECRET_KEY}/subgraphs/id/8wR23o1zkS4gpLqLNU4kG3JHYVucqGyopL5utGxP2q1N"
+api_endpoint_v3 = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g"
+api_endpoint_v2 = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/id/8wR23o1zkS4gpLqLNU4kG3JHYVucqGyopL5utGxP2q1N"
 
 
 def run_query_reserves_statistics_protocol_v3(

@@ -5,9 +5,8 @@ from api_functions import get_balance_sheet
 
 app = FastAPI(
     title="AAVE V3 Data Provider",
-    description=
-    "An application to access the Aave V3 data 🚢 <br>An API version to facilitate data access 🚀" +\
-        "<br><br><img src=\"https://cryptologos.cc/logos/aave-aave-logo.png\" width=\"200\">"
+    description="An application to access the Aave V3 data 🚢 <br>An API version to facilitate data access 🚀"
+    + '<br><br><img src="https://cryptologos.cc/logos/aave-aave-logo.png" width="200">',
 )
 
 
@@ -19,7 +18,7 @@ def show_welcome_page():
 
     return {
         "Message": "API de prédiction de survie sur le Titanic",
-        "Model_name": 'Titanic ML',
+        "Model_name": "Titanic ML",
         "Model_version": "0.1",
     }
 
@@ -30,13 +29,10 @@ async def predict(
     year: int = 2024,
     month: int = 7,
     day: int = 18,
-    hour: int = 14
+    hour: int = 14,
 ) -> str:
-    """
-    """
+    """ """
 
-    balance_info = get_balance_sheet(
-        asset, year, month, day, hour
-    )
+    balance_info = get_balance_sheet(asset, year, month, day, hour)
 
     return balance_info

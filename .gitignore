@@ -2,5 +2,6 @@
 *.ipynb
 env/*
 draftenv/*
+devenv/*
 .vscode/*
 *.pyc

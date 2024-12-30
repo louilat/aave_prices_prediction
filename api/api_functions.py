@@ -4,6 +4,7 @@ import pandas as pd
 from pandas import DataFrame
 from datetime import datetime
 
+
 def get_balance_sheet(
     asset: str, year: int, month: int, day: int, hour: int
 ) -> DataFrame:

@@ -12,6 +12,11 @@ from src.reserves_features.reserves_features import (
     fill_missing_data,
 )
 
+from src.reserves_features.reserves_features_quality_check import (
+    reserve_data_quality_check,
+    add_clean_data,
+)
+
 load_dotenv()
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -73,6 +78,25 @@ for month in months_to_extract:
     reserves_history_hourly_selected_assets_completed = fill_missing_data(
         reserves_history_hourly_selected_assets
     )
+
+    print("   [5] - Run quality checks...")
+    try:
+        outcome, score = reserve_data_quality_check(
+            reserves_history_hourly_selected_assets_completed
+        )
+        if not outcome:
+            print(f"WARNING ! Quality check failed, with score: {score}")
+        else:
+            print(f"Passed quality check successfully, with score: {score}")
+    except AssertionError as e:
+        print(f"WARNING ! Quality check failed with FATAL ERROR: {e}")
+
+    if version_2:
+        print("   [6] - Consolidate data...")
+        reserves_history_hourly_selected_assets_completed = add_clean_data(
+            reserves_history_hourly_selected_assets_completed,
+            verbose=True,
+        )
 
     print("Uploading files to s3...")
     client_s3 = boto3.client(
