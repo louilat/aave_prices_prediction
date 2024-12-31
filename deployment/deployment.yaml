@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aave-data-deployment
+  labels:
+    app: aave
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aave
+  template:
+    metadata:
+      labels:
+        app: aave
+    spec:
+      containers:
+      - name: aave
+        image: louilat/aave_data_extraction:latest
+        ports:
+        - containerPort: 8000
