@@ -33,8 +33,8 @@ output_path = "aave-data/data-prod/aave-v2/reserves-features/"
 file_name = "reserves_history_hourly_selected_assets_completed"
 version_2 = True
 max_queries_number = 300
-year = 2021
-months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+year = 2023
+months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 client_s3 = boto3.client(
     "s3",
@@ -96,18 +96,23 @@ for month in months_to_extract:
         logger=logger,
     )
 
-    logger.log("   [5] - Run quality checks...")
-    try:
-        outcome, score = reserve_data_quality_check(
-            reserves_history_hourly_selected_assets_completed,
-            version_2=version_2,
-        )
-        if not outcome:
-            logger.log(f"   WARNING ! Quality check failed, with score: {score}")
-        else:
-            logger.log(f"   Passed quality check successfully, with score: {score}")
-    except AssertionError as e:
-        logger.log(f"   WARNING ! Quality check failed with FATAL ERROR: {e}")
+    logger.log("   [5] - Running quality checks...")
+    for asset_name in assets_list:
+        logger.log(f"   Checking asset {asset_name}")
+        try:
+            outcome, score = reserve_data_quality_check(
+                reserves_history_hourly_selected_assets_completed[
+                    reserves_history_hourly_selected_assets_completed.reserve_name
+                    == asset_name
+                ],
+                version_2=version_2,
+            )
+            if not outcome:
+                logger.log(f"   WARNING ! Quality check failed, with score: {score}")
+            else:
+                logger.log(f"   Passed quality check successfully, with score: {score}")
+        except AssertionError as e:
+            logger.log(f"   WARNING ! Quality check failed with FATAL ERROR: {e}")
 
     if version_2:
         logger.log("   [6] - Consolidate data...")

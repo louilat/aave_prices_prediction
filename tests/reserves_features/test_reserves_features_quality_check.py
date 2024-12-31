@@ -1,10 +1,9 @@
 import pytest
 import pandas as pd
 from pandas import DataFrame, Timestamp
-from ...src.reserves_features.reserves_features_quality_check import add_clean_data
-from ...src.utils.logger import Logger
-
-logger = Logger()
+from ...src.reserves_features.reserves_features_quality_check import (
+    add_clean_data_per_asset,
+)
 
 
 @pytest.fixture
@@ -231,8 +230,8 @@ def hourly_asset_reserve_completed():
     )
 
 
-def test_add_clean_data(hourly_asset_reserve_completed):
-    clean_data = add_clean_data(hourly_asset_reserve_completed, logger=logger)
+def test_add_clean_data_per_asset(hourly_asset_reserve_completed):
+    clean_data = add_clean_data_per_asset(hourly_asset_reserve_completed)
     assert (
         clean_data.columns.tolist()
         == hourly_asset_reserve_completed.columns.tolist()

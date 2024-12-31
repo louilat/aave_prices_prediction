@@ -82,9 +82,7 @@ def reserve_data_quality_check(
         return quality_score > 0.95, quality_score
 
 
-def add_clean_data(
-    hourly_asset_reserve_completed: DataFrame, logger: Logger, verbose: bool = False
-) -> DataFrame:
+def add_clean_data_per_asset(hourly_asset_reserve_completed: DataFrame) -> DataFrame:
     """
     Add extra columns to the hourly_asset_reserve_completed with consolidated values.
     The extra columns are:
@@ -109,21 +107,6 @@ def add_clean_data(
     clean_reserve_data["fixed_liquidityIndex"] = (
         clean_reserve_data.liquidityIndex.cummax()
     )
-    if verbose:
-        wrong_borrow_indexes = np.sum(
-            (
-                clean_reserve_data.fixed_variableBorrowIndex
-                != clean_reserve_data.variableBorrowIndex
-            )
-        )
-        wrong_liquidity_indexes = np.sum(
-            (
-                clean_reserve_data.fixed_liquidityIndex
-                != clean_reserve_data.liquidityIndex
-            )
-        )
-        logger.log(f"      --> Fixed {wrong_borrow_indexes} borrow index values")
-        logger.log(f"      --> Fixed {wrong_liquidity_indexes} liquidity index values")
 
     # Fix rates
     clean_reserve_data["fixed_variableBorrowRate"] = np.clip(
@@ -135,23 +118,69 @@ def add_clean_data(
     clean_reserve_data["fixed_utilizationRate"] = np.clip(
         clean_reserve_data.utilizationRate, a_min=0, a_max=1
     )
+    return clean_reserve_data
+
+
+def add_clean_data(
+    hourly_reserve_completed: DataFrame, logger: Logger, verbose: bool = False
+) -> DataFrame:
+    """
+    Loop over the assets and call the `add_clean_data_per_asset` function on each asset
+
+    Args:
+        hourly_reserve_completed (DataFrame): The dataset to add clean data on.
+        logger (Logger): The logger
+        verbose (bool): Wether to print details during execution
+    Returns:
+         DataFrame: The table with extra columns with clean data.
+    """
+    clean_hourly_reserve = DataFrame()
+    assets_list = hourly_reserve_completed.reserve_name.unique().tolist()
+    for asset_name in assets_list:
+        hourly_asset_reserve = hourly_reserve_completed[
+            hourly_reserve_completed.reserve_name == asset_name
+        ]
+        clean_asset_data = add_clean_data_per_asset(hourly_asset_reserve)
+        clean_hourly_reserve = pd.concat((clean_hourly_reserve, clean_asset_data))
+
     if verbose:
+        wrong_borrow_indexes = np.sum(
+            (
+                clean_hourly_reserve.fixed_variableBorrowIndex
+                != clean_hourly_reserve.variableBorrowIndex
+            )
+        )
+        wrong_liquidity_indexes = np.sum(
+            (
+                clean_hourly_reserve.fixed_liquidityIndex
+                != clean_hourly_reserve.liquidityIndex
+            )
+        )
+        logger.log(f"      --> Fixed {wrong_borrow_indexes} borrow index values")
+        logger.log(f"      --> Fixed {wrong_liquidity_indexes} liquidity index values")
+
         wrong_borrow_rates = np.sum(
             (
-                clean_reserve_data.variableBorrowRate
-                != clean_reserve_data.fixed_variableBorrowRate
+                clean_hourly_reserve.variableBorrowRate
+                != clean_hourly_reserve.fixed_variableBorrowRate
             )
         )
         wrong_liquidity_rates = np.sum(
-            (clean_reserve_data.liquidityRate != clean_reserve_data.fixed_liquidityRate)
+            (
+                clean_hourly_reserve.liquidityRate
+                != clean_hourly_reserve.fixed_liquidityRate
+            )
         )
         wrong_utilization_rates = np.sum(
             (
-                clean_reserve_data.utilizationRate
-                != clean_reserve_data.fixed_utilizationRate
+                clean_hourly_reserve.utilizationRate
+                != clean_hourly_reserve.fixed_utilizationRate
             )
         )
         logger.log(f"      --> Fixed {wrong_borrow_rates} borrow rate values")
         logger.log(f"      --> Fixed {wrong_liquidity_rates} liquidity rate values")
         logger.log(f"      --> Fixed {wrong_utilization_rates} utilization rate values")
-    return clean_reserve_data
+
+    assert len(clean_hourly_reserve) == len(hourly_reserve_completed)
+
+    return clean_hourly_reserve
