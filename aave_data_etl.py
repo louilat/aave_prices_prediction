@@ -33,10 +33,18 @@ output_path = "aave-data/data-prod/aave-v2/reserves-features/"
 file_name = "reserves_history_hourly_selected_assets_completed"
 version_2 = True
 max_queries_number = 300
-year = 2020
-months_to_extract = [12]
-logger.logs.info("Starting ETL")
+year = 2021
+months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
+client_s3 = boto3.client(
+    "s3",
+    endpoint_url="https://" + "minio.lab.sspcloud.fr",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    aws_session_token=AWS_SESSION_TOKEN,
+)
+
+logger.log("Starting ETL")
 
 for month in months_to_extract:
     start_date = datetime(year, month, 1, tzinfo=timezone.utc)
@@ -44,14 +52,14 @@ for month in months_to_extract:
     end_date = datetime(next_date.year, next_date.month, 1, tzinfo=timezone.utc)
     timestamp_min = datetime.timestamp(start_date)
     timestamp_max = datetime.timestamp(end_date)
-    logger.logs.info(f"min_date: {start_date}, max_date: {end_date}")
-    logger.logs.info(
+    logger.log(f"min_date: {start_date}, max_date: {end_date}")
+    logger.log(
         f"Starting data extraction with version_2 = {version_2} timestamp_min = {timestamp_min}, timestamp_max = {timestamp_max}"
     )
 
-    logger.logs.info("Step 1 - Extracting reserves' features")
+    logger.log("Step 1 - Extracting reserves' features")
 
-    logger.logs.info("   [1] - Querying Aave Protocol subgraph from Thegraph...")
+    logger.log("   [1] - Querying Aave Protocol subgraph from Thegraph...")
     reserves_table = fetch_reserves_data(
         size=1000,
         n_iter=max_queries_number,
@@ -61,16 +69,14 @@ for month in months_to_extract:
         timestamp_max=timestamp_max,
     )
 
-    logger.logs.info(
-        "   [2] - Cleaning reserves_table dataset (units and granularity)..."
-    )
+    logger.log("   [2] - Cleaning reserves_table dataset (units and granularity)...")
     reserves_history_hourly = convert_units_and_get_hourly_granularity(
         reserves_table=reserves_table,
         version_2=version_2,
         logger=logger,
     )
 
-    logger.logs.info("   [3] - Selecting main assets...")
+    logger.log("   [3] - Selecting main assets...")
     assets_list = [
         "Wrapped Ether",
         "Wrapped BTC",
@@ -84,45 +90,34 @@ for month in months_to_extract:
         reserves_history_hourly.reserve_name.isin(assets_list)
     ]
 
-    logger.logs.info(
-        "   [4] - Filling the missing rows with the latest available data..."
-    )
+    logger.log("   [4] - Filling the missing rows with the latest available data...")
     reserves_history_hourly_selected_assets_completed = fill_missing_data(
         reserves_history_hourly_selected_assets,
         logger=logger,
     )
 
-    logger.logs.info("   [5] - Run quality checks...")
+    logger.log("   [5] - Run quality checks...")
     try:
         outcome, score = reserve_data_quality_check(
             reserves_history_hourly_selected_assets_completed,
             version_2=version_2,
         )
         if not outcome:
-            logger.logs.info(f"   WARNING ! Quality check failed, with score: {score}")
+            logger.log(f"   WARNING ! Quality check failed, with score: {score}")
         else:
-            logger.logs.info(
-                f"   Passed quality check successfully, with score: {score}"
-            )
+            logger.log(f"   Passed quality check successfully, with score: {score}")
     except AssertionError as e:
-        logger.logs.info(f"   WARNING ! Quality check failed with FATAL ERROR: {e}")
+        logger.log(f"   WARNING ! Quality check failed with FATAL ERROR: {e}")
 
     if version_2:
-        logger.logs.info("   [6] - Consolidate data...")
+        logger.log("   [6] - Consolidate data...")
         reserves_history_hourly_selected_assets_completed = add_clean_data(
             reserves_history_hourly_selected_assets_completed,
             verbose=True,
             logger=logger,
         )
 
-    logger.logs.info("Uploading files to s3...")
-    client_s3 = boto3.client(
-        "s3",
-        endpoint_url="https://" + "minio.lab.sspcloud.fr",
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        aws_session_token=AWS_SESSION_TOKEN,
-    )
+    logger.log("Uploading files to s3...")
 
     try:
         csv_buffer = io.StringIO()
@@ -134,14 +129,14 @@ for month in months_to_extract:
             Bucket="llatournerie",
             Key=output_path + file_name + f"_{year}-{month}" + ".csv",
         )
-        logger.logs.info(f"   --> Outputs successfully generated at {output_path}")
+        logger.log(f"   --> Outputs successfully generated at {output_path}")
     except Exception as e:
-        logger.logs.info(f"Failed to upload files to s3, with error: {e}")
+        logger.log(f"Failed to upload files to s3, with error: {e}")
 
 client_s3.put_object(
     Body=logger.buffer.getvalue(),
     Bucket="llatournerie",
-    Key=output_path + f"logfile_{year}.txt",
+    Key=output_path + f"logfile_{year}.log",
 )
 
-logger.logs.info("Done !")
+logger.log("Done !")

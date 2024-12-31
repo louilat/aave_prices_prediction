@@ -139,7 +139,7 @@ def convert_units_and_get_hourly_granularity(
     reserves_history = reserves_history.reset_index(drop=True)
     reserves_history = reserves_history.drop_duplicates()
     if verbose:
-        logger.logs.info(
+        logger.log(
             f"      --> Dropped {len(reserves_table) - len(reserves_history)} duplicates: total of {len(reserves_history)} rows"
         )
 
@@ -231,10 +231,10 @@ def convert_units_and_get_hourly_granularity(
         subset=["reserve_name", "datetime"]
     )
     if verbose:
-        logger.logs.info(
+        logger.log(
             f"      --> Dropped {len(reserves_history) - len(reserves_history_hourly)} rows when getting the hour granularity"
         )
-        logger.logs.info(f"      -->Total of {len(reserves_history_hourly)} rows")
+        logger.log(f"      -->Total of {len(reserves_history_hourly)} rows")
     return reserves_history_hourly
 
 
@@ -244,8 +244,8 @@ def fill_missing_data(
     starting_datetime = min(pd.to_datetime(hourly_reserves_snapshots.datetime))
     ending_datetime = max(pd.to_datetime(hourly_reserves_snapshots.datetime))
     if verbose:
-        logger.logs.info(f"      --> Minimum datetime: {starting_datetime}")
-        logger.logs.info(f"      --> Maximum datetime: {ending_datetime}")
+        logger.log(f"      --> Minimum datetime: {starting_datetime}")
+        logger.log(f"      --> Maximum datetime: {ending_datetime}")
     reserves_list = hourly_reserves_snapshots.reserve_name.unique()
     regular_outputs_list = list()
     # current_hour = starting_datetime
@@ -256,7 +256,7 @@ def fill_missing_data(
     base_output = DataFrame({"regular_datetime": output_datetimes_list})
     for reserve in reserves_list:
         if verbose:
-            logger.logs.info(f"      --> Reserve_name: {reserve}")
+            logger.log(f"      --> Reserve_name: {reserve}")
         reserve_data = hourly_reserves_snapshots[
             hourly_reserves_snapshots.reserve_name == reserve
         ]
@@ -264,7 +264,7 @@ def fill_missing_data(
             reserve_data.datetime
         ), "Same datetime appears several times for a given asset"
         if verbose:
-            logger.logs.info(
+            logger.log(
                 f"      --> {len(base_output) - len(reserve_data)} rows are missing"
             )
         # reserve_data = reserve_data.sort_values("datetime").reset_index(drop=True)

@@ -15,7 +15,11 @@ class Logger:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         capture.setFormatter(formatter)
-        logger.addHandler(logging.StreamHandler())
+        # logger.addHandler(logging.StreamHandler())
         logger.addHandler(capture)
         self.buffer = buffer
         self.logs = logger
+
+    def log(self, message: str) -> None:
+        self.logs.info(message)
+        print(message)

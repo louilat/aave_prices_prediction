@@ -122,10 +122,8 @@ def add_clean_data(
                 != clean_reserve_data.liquidityIndex
             )
         )
-        logger.logs.info(f"      --> Fixed {wrong_borrow_indexes} borrow index values")
-        logger.logs.info(
-            f"      --> Fixed {wrong_liquidity_indexes} liquidity index values"
-        )
+        logger.log(f"      --> Fixed {wrong_borrow_indexes} borrow index values")
+        logger.log(f"      --> Fixed {wrong_liquidity_indexes} liquidity index values")
 
     # Fix rates
     clean_reserve_data["fixed_variableBorrowRate"] = np.clip(
@@ -153,11 +151,7 @@ def add_clean_data(
                 != clean_reserve_data.fixed_utilizationRate
             )
         )
-        logger.logs.info(f"      --> Fixed {wrong_borrow_rates} borrow rate values")
-        logger.logs.info(
-            f"      --> Fixed {wrong_liquidity_rates} liquidity rate values"
-        )
-        logger.logs.info(
-            f"      --> Fixed {wrong_utilization_rates} utilization rate values"
-        )
+        logger.log(f"      --> Fixed {wrong_borrow_rates} borrow rate values")
+        logger.log(f"      --> Fixed {wrong_liquidity_rates} liquidity rate values")
+        logger.log(f"      --> Fixed {wrong_utilization_rates} utilization rate values")
     return clean_reserve_data
