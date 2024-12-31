@@ -272,6 +272,7 @@ def fill_missing_data(
             reserve_data, how="left", left_on="regular_datetime", right_on="datetime"
         )
         reserve_output = reserve_output.infer_objects(copy=False).ffill()
+        reserve_output.reserve_name = reserve
 
         # Add a "filled_value" flag
         true_values = DataFrame(
