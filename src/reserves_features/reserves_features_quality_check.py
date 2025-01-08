@@ -28,7 +28,7 @@ def reserve_data_quality_check(
     """
     # Conditions 1 and 2
     valid_lengths = [28 * 24, 29 * 24, 30 * 24, 31 * 34]
-    assert not len(hourly_asset_reserve_completed) in valid_lengths, "Invalid length"
+    assert len(hourly_asset_reserve_completed) in valid_lengths, "Invalid length"
     assert len(hourly_asset_reserve_completed.drop_duplicates()) == len(
         hourly_asset_reserve_completed
     ), "Found duplicates"
