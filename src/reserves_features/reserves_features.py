@@ -217,15 +217,43 @@ def convert_units_and_get_hourly_granularity(
         reserves_history.variableBorrowRate.apply(int) * 1e-27
     )
 
+    reserves_history["datetime"] = pd.to_datetime(reserves_history.timestamp, unit="s", utc=True).dt.floor("h")
+
+    if version_2:
+        reserves_history_ = DataFrame()
+        for reserve_name in reserves_history.reserve_name.unique().tolist():
+            reserve_asset = reserves_history[reserves_history.reserve_name == reserve_name]
+            reserve_asset = reserve_asset.sort_values(["datetime"])
+            hours = reserve_asset.datetime
+            liq_min_prev_group = hours.map(reserve_asset.groupby("datetime").liquidityIndex.min().shift(fill_value=1))
+            liq_max_next_group = hours.map(reserve_asset.groupby("datetime").liquidityIndex.max().shift(periods=-1, fill_value=1000))
+            bor_min_prev_group = hours.map(reserve_asset.groupby("datetime").variableBorrowIndex.min().shift(fill_value=1))
+            bor_max_next_group = hours.map(reserve_asset.groupby("datetime").variableBorrowIndex.max().shift(periods=-1, fill_value=1000))
+            valid_liq_index_flag = (reserve_asset.liquidityIndex >= liq_min_prev_group) & (reserve_asset.liquidityIndex <= liq_max_next_group)
+            valid_bor_index_flag = (reserve_asset.variableBorrowIndex >= bor_min_prev_group) & (reserve_asset.variableBorrowIndex <= bor_max_next_group)
+            reserve_asset["virtual_timestamp"] = valid_liq_index_flag * valid_bor_index_flag * reserve_asset.timestamp
+            reserve_asset["flag"] = valid_liq_index_flag
+            reserve_asset["lmpv"] = liq_min_prev_group
+            reserves_history_ = pd.concat((reserves_history_, reserve_asset))
+        assert len(reserves_history_) == len(reserves_history)
+        reserves_history = reserves_history_
     # Keep Hour Granularity
-    reserves_history["datetime"] = pd.to_datetime(reserves_history.timestamp, unit="s")
-    reserves_history.datetime = reserves_history.datetime.dt.round("h")
-    reserves_history_last_data_per_hour = reserves_history.groupby(
-        ["reserve_name", "datetime"]
-    )["timestamp"].transform("max")
-    reserves_history_last_data_per_hour_mask = (
-        reserves_history.timestamp == reserves_history_last_data_per_hour
-    )
+    if not version_2:
+        reserves_history_last_data_per_hour = reserves_history.groupby(
+            ["reserve_name", "datetime"]
+        )["timestamp"].transform("max")
+        reserves_history_last_data_per_hour_mask = (
+            reserves_history.timestamp == reserves_history_last_data_per_hour
+        )
+    else:
+        reserves_history_last_data_per_hour = reserves_history.groupby(
+            ["reserve_name", "datetime"]
+        )["virtual_timestamp"].transform("max")
+        reserves_history_last_data_per_hour_mask = (
+            reserves_history.virtual_timestamp == reserves_history_last_data_per_hour
+        )
+        reserves_history = reserves_history.drop(columns=["virtual_timestamp"])
+
     reserves_history_hourly = reserves_history[reserves_history_last_data_per_hour_mask]
     reserves_history_hourly = reserves_history_hourly.drop_duplicates(
         subset=["reserve_name", "datetime"]

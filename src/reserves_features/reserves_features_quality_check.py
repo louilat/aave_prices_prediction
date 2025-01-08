@@ -98,16 +98,42 @@ def add_clean_data_per_asset(hourly_asset_reserve_completed: DataFrame) -> DataF
     Returns:
         DataFrame: The input table with extra columns for fixed values
     """
-    clean_reserve_data = hourly_asset_reserve_completed.copy()
+    clean_reserve_data = hourly_asset_reserve_completed.sort_values("regular_datetime").reset_index(drop=True)
 
     # Fix indexes
-    clean_reserve_data["fixed_variableBorrowIndex"] = (
-        clean_reserve_data.variableBorrowIndex.cummax()
-    )
-    clean_reserve_data["fixed_liquidityIndex"] = (
-        clean_reserve_data.liquidityIndex.cummax()
-    )
+    n = len(clean_reserve_data)
+    clean_reserve_data.loc[0, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[0, "variableBorrowIndex"]
+    clean_reserve_data.loc[0, "fixed_liquidityIndex"] = clean_reserve_data.loc[0, "liquidityIndex"]
+    clean_reserve_data.loc[n-1, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[n-1, "variableBorrowIndex"]
+    clean_reserve_data.loc[n-1, "fixed_liquidityIndex"] = clean_reserve_data.loc[n-1, "liquidityIndex"]
 
+    for index in range(1, n-1):
+        prev_liq = clean_reserve_data.loc[index-1, "liquidityIndex"]
+        curr_liq = clean_reserve_data.loc[index, "liquidityIndex"]
+        next_liq = clean_reserve_data.loc[index+1, "liquidityIndex"]
+        prev_bor = clean_reserve_data.loc[index-1, "variableBorrowIndex"]
+        curr_bor = clean_reserve_data.loc[index, "variableBorrowIndex"]
+        next_bor = clean_reserve_data.loc[index+1, "variableBorrowIndex"]
+
+        if (prev_liq <= curr_liq) & (curr_liq <= next_liq):
+            print("Youpi")
+            clean_reserve_data.loc[index, "fixed_liquidityIndex"] = clean_reserve_data.loc[index, "liquidityIndex"]
+        else:
+            print("crocro")
+            clean_reserve_data.loc[index, "fixed_liquidityIndex"] = prev_liq
+        
+        if (prev_bor <= curr_bor) & (curr_bor <= next_bor):
+            clean_reserve_data.loc[index, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[index, "variableBorrowIndex"]
+        else:
+            clean_reserve_data.loc[index, "fixed_variableBorrowIndex"] = prev_bor
+    
+    # clean_reserve_data["fixed_variableBorrowIndex"] = (
+    #     clean_reserve_data.variableBorrowIndex.cummax()
+    # )
+    # clean_reserve_data["fixed_liquidityIndex"] = (
+    #     clean_reserve_data.liquidityIndex.cummax()
+    # )
+    
     # Fix rates
     clean_reserve_data["fixed_variableBorrowRate"] = np.clip(
         clean_reserve_data.variableBorrowRate, a_min=0, a_max=1
