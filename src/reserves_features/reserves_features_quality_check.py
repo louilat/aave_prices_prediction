@@ -116,10 +116,8 @@ def add_clean_data_per_asset(hourly_asset_reserve_completed: DataFrame) -> DataF
         next_bor = clean_reserve_data.loc[index+1, "variableBorrowIndex"]
 
         if (prev_liq <= curr_liq) & (curr_liq <= next_liq):
-            print("Youpi")
             clean_reserve_data.loc[index, "fixed_liquidityIndex"] = clean_reserve_data.loc[index, "liquidityIndex"]
         else:
-            print("crocro")
             clean_reserve_data.loc[index, "fixed_liquidityIndex"] = prev_liq
         
         if (prev_bor <= curr_bor) & (curr_bor <= next_bor):
