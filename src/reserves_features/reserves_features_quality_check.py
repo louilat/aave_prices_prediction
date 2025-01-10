@@ -1,7 +1,7 @@
 """Data quality check functions for the reserves features extraction"""
 
 import pandas as pd
-from pandas import DataFrame
+from pandas import DataFrame, Timedelta
 import numpy as np
 from ..utils.logger import Logger
 
@@ -27,8 +27,9 @@ def reserve_data_quality_check(
         float: The quality score
     """
     # Conditions 1 and 2
-    valid_lengths = [28 * 24, 29 * 24, 30 * 24, 31 * 34]
-    assert len(hourly_asset_reserve_completed) in valid_lengths, "Invalid length"
+    valid_lengths = [28 * 24, 29 * 24, 30 * 24, 31 * 24]
+    l = len(hourly_asset_reserve_completed)
+    assert l in valid_lengths, f"Invalid length: {l}"
     assert len(hourly_asset_reserve_completed.drop_duplicates()) == len(
         hourly_asset_reserve_completed
     ), "Found duplicates"
@@ -98,40 +99,17 @@ def add_clean_data_per_asset(hourly_asset_reserve_completed: DataFrame) -> DataF
     Returns:
         DataFrame: The input table with extra columns for fixed values
     """
-    clean_reserve_data = hourly_asset_reserve_completed.sort_values("regular_datetime").reset_index(drop=True)
 
-    # Fix indexes
-    n = len(clean_reserve_data)
-    clean_reserve_data.loc[0, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[0, "variableBorrowIndex"]
-    clean_reserve_data.loc[0, "fixed_liquidityIndex"] = clean_reserve_data.loc[0, "liquidityIndex"]
-    clean_reserve_data.loc[n-1, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[n-1, "variableBorrowIndex"]
-    clean_reserve_data.loc[n-1, "fixed_liquidityIndex"] = clean_reserve_data.loc[n-1, "liquidityIndex"]
+    clean_reserve_data = remove_indexes_outliers(
+        reserve_data=hourly_asset_reserve_completed,
+        index_column="liquidityIndex",
+    )
 
-    for index in range(1, n-1):
-        prev_liq = clean_reserve_data.loc[index-1, "liquidityIndex"]
-        curr_liq = clean_reserve_data.loc[index, "liquidityIndex"]
-        next_liq = clean_reserve_data.loc[index+1, "liquidityIndex"]
-        prev_bor = clean_reserve_data.loc[index-1, "variableBorrowIndex"]
-        curr_bor = clean_reserve_data.loc[index, "variableBorrowIndex"]
-        next_bor = clean_reserve_data.loc[index+1, "variableBorrowIndex"]
+    clean_reserve_data = remove_indexes_outliers(
+        reserve_data=clean_reserve_data,
+        index_column="variableBorrowIndex",
+    )
 
-        if (prev_liq <= curr_liq) & (curr_liq <= next_liq):
-            clean_reserve_data.loc[index, "fixed_liquidityIndex"] = clean_reserve_data.loc[index, "liquidityIndex"]
-        else:
-            clean_reserve_data.loc[index, "fixed_liquidityIndex"] = prev_liq
-        
-        if (prev_bor <= curr_bor) & (curr_bor <= next_bor):
-            clean_reserve_data.loc[index, "fixed_variableBorrowIndex"] = clean_reserve_data.loc[index, "variableBorrowIndex"]
-        else:
-            clean_reserve_data.loc[index, "fixed_variableBorrowIndex"] = prev_bor
-    
-    # clean_reserve_data["fixed_variableBorrowIndex"] = (
-    #     clean_reserve_data.variableBorrowIndex.cummax()
-    # )
-    # clean_reserve_data["fixed_liquidityIndex"] = (
-    #     clean_reserve_data.liquidityIndex.cummax()
-    # )
-    
     # Fix rates
     clean_reserve_data["fixed_variableBorrowRate"] = np.clip(
         clean_reserve_data.variableBorrowRate, a_min=0, a_max=1
@@ -163,7 +141,7 @@ def add_clean_data(
     for asset_name in assets_list:
         hourly_asset_reserve = hourly_reserve_completed[
             hourly_reserve_completed.reserve_name == asset_name
-        ]
+        ].copy()
         clean_asset_data = add_clean_data_per_asset(hourly_asset_reserve)
         clean_hourly_reserve = pd.concat((clean_hourly_reserve, clean_asset_data))
 
@@ -208,3 +186,52 @@ def add_clean_data(
     assert len(clean_hourly_reserve) == len(hourly_reserve_completed)
 
     return clean_hourly_reserve
+
+
+def remove_indexes_outliers(reserve_data: DataFrame, index_column: str) -> DataFrame:
+    """
+    Adds a column to reserve_data called `fixed_{index_column}` where the index outliers
+    from index_column have been removed.
+
+    Args:
+        reserve_data (DataFrame): The dataframe from with the index outliers should be removed
+        index_column (str): The name of the index column to process
+    Returns:
+        DataFrame: A Dataframe similar to reserve_data, but with a extra column named
+            `fixed_{index_column}`
+    """
+    reserve_data_fixed = DataFrame()
+    reserve_data["regular_datetime"] = pd.to_datetime(reserve_data.regular_datetime)
+    day_min = min(reserve_data.regular_datetime.dt.date)
+    day_max = max(reserve_data.regular_datetime.dt.date)
+    day = day_min
+    assets_list = reserve_data.reserve_name.unique().tolist()
+    dict_fill_values = {asset: 1 for asset in assets_list}
+    while day <= day_max:
+        reserve_data_day = reserve_data[
+            reserve_data.regular_datetime.dt.date == day
+        ].copy()
+        for asset in assets_list:
+            reserve_data_day_asset = reserve_data_day[
+                reserve_data_day.reserve_name == asset
+            ].copy()
+            q1 = reserve_data_day_asset[index_column].quantile(0.25)
+            q3 = reserve_data_day_asset[index_column].quantile(0.75)
+            iqr = q3 - q1
+            limit_low = q1 - 1.5 * iqr
+            limit_high = q3 + 1.5 * iqr
+            reserve_data_day_asset[f"fixed_{index_column}"] = np.where(
+                (reserve_data_day_asset[index_column] > limit_high)
+                | (reserve_data_day_asset[index_column] < limit_low),
+                reserve_data_day_asset[index_column].shift(
+                    periods=1, fill_value=dict_fill_values[asset]
+                ),
+                reserve_data_day_asset[index_column],
+            )
+            reserve_data_fixed = pd.concat((reserve_data_fixed, reserve_data_day_asset))
+            dict_fill_values[asset] = max(
+                reserve_data_day_asset[f"fixed_{index_column}"]
+            )
+        day += Timedelta(days=1)
+    assert len(reserve_data_fixed) == len(reserve_data)
+    return reserve_data_fixed

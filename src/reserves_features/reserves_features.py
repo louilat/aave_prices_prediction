@@ -16,6 +16,17 @@ api_endpoint_v3 = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/
 api_endpoint_v2 = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/id/8wR23o1zkS4gpLqLNU4kG3JHYVucqGyopL5utGxP2q1N"
 
 
+outliers_index_threshold = {
+    "Wrapped Ether": 2.5e-3,
+    "Wrapped BTC": 2.5e-3,
+    "USD Coin": 2.5e-3,
+    "Dai Stablecoin": 2.5e-3,
+    "Wrapped liquid staked Ether 2.0": 2.5e-3,
+    "Tether USD": 2.5e-3,
+    "Aave Token": 2.5e-3,
+}
+
+
 def run_query_reserves_statistics_protocol_v3(
     size: int, offset: int, timestamp_min: int, timestamp_max: int
 ) -> dict:
@@ -129,7 +140,7 @@ def fetch_reserves_data(
     return reserves_table
 
 
-def convert_units_and_get_hourly_granularity(
+def convert_units(
     reserves_table: DataFrame,
     logger: Logger,
     version_2: bool = False,
@@ -217,43 +228,64 @@ def convert_units_and_get_hourly_granularity(
         reserves_history.variableBorrowRate.apply(int) * 1e-27
     )
 
-    reserves_history["datetime"] = pd.to_datetime(reserves_history.timestamp, unit="s", utc=True).dt.floor("h")
+    return reserves_history
+
+
+def get_hourly_granularity(
+    reserves_table: DataFrame,
+    logger: Logger,
+    version_2: bool = False,
+    verbose: bool = True,
+) -> DataFrame:
+    reserves_history = reserves_table.copy()
+    reserves_history["datetime"] = pd.to_datetime(
+        reserves_history.timestamp, unit="s", utc=True
+    ).dt.floor("h")
 
     if version_2:
         reserves_history_ = DataFrame()
         for reserve_name in reserves_history.reserve_name.unique().tolist():
-            reserve_asset = reserves_history[reserves_history.reserve_name == reserve_name]
+            reserve_asset = reserves_history[
+                reserves_history.reserve_name == reserve_name
+            ]
             reserve_asset = reserve_asset.sort_values(["datetime"])
-            hours = reserve_asset.datetime
-            liq_min_prev_group = hours.map(reserve_asset.groupby("datetime").liquidityIndex.min().shift(fill_value=1))
-            liq_max_next_group = hours.map(reserve_asset.groupby("datetime").liquidityIndex.max().shift(periods=-1, fill_value=1000))
-            bor_min_prev_group = hours.map(reserve_asset.groupby("datetime").variableBorrowIndex.min().shift(fill_value=1))
-            bor_max_next_group = hours.map(reserve_asset.groupby("datetime").variableBorrowIndex.max().shift(periods=-1, fill_value=1000))
-            valid_liq_index_flag = (reserve_asset.liquidityIndex >= liq_min_prev_group) & (reserve_asset.liquidityIndex <= liq_max_next_group)
-            valid_bor_index_flag = (reserve_asset.variableBorrowIndex >= bor_min_prev_group) & (reserve_asset.variableBorrowIndex <= bor_max_next_group)
-            reserve_asset["virtual_timestamp"] = valid_liq_index_flag * valid_bor_index_flag * reserve_asset.timestamp
-            reserve_asset["flag"] = valid_liq_index_flag
-            reserve_asset["lmpv"] = liq_min_prev_group
+            reserve_asset = flag_outlier_indexes(
+                reserves_data=reserve_asset,
+                column_name="liquidityIndex",
+                variation_threshold=outliers_index_threshold[reserve_name],
+            )
+            reserve_asset = flag_outlier_indexes(
+                reserves_data=reserve_asset,
+                column_name="variableBorrowIndex",
+                variation_threshold=outliers_index_threshold[reserve_name],
+            )
             reserves_history_ = pd.concat((reserves_history_, reserve_asset))
         assert len(reserves_history_) == len(reserves_history)
         reserves_history = reserves_history_
-    # Keep Hour Granularity
-    if not version_2:
-        reserves_history_last_data_per_hour = reserves_history.groupby(
-            ["reserve_name", "datetime"]
-        )["timestamp"].transform("max")
-        reserves_history_last_data_per_hour_mask = (
-            reserves_history.timestamp == reserves_history_last_data_per_hour
+        reserves_history = reserves_history[
+            reserves_history.is_not_outlier_liquidityIndex
+        ]
+        reserves_history = reserves_history[
+            reserves_history.is_not_outlier_variableBorrowIndex
+        ]
+        reserves_history = reserves_history.drop(
+            columns=[
+                "is_not_outlier_liquidityIndex",
+                "is_not_outlier_variableBorrowIndex",
+            ]
         )
-    else:
-        reserves_history_last_data_per_hour = reserves_history.groupby(
-            ["reserve_name", "datetime"]
-        )["virtual_timestamp"].transform("max")
-        reserves_history_last_data_per_hour_mask = (
-            reserves_history.virtual_timestamp == reserves_history_last_data_per_hour
-        )
-        reserves_history = reserves_history.drop(columns=["virtual_timestamp"])
+        if verbose:
+            logger.log(
+                f"      --> Dropped {len(reserves_history_) - len(reserves_history)} lines when removing indexes outliers"
+            )
 
+    # Keep Hour Granularity
+    reserves_history_last_data_per_hour = reserves_history.groupby(
+        ["reserve_name", "datetime"]
+    )["timestamp"].transform("max")
+    reserves_history_last_data_per_hour_mask = (
+        reserves_history.timestamp == reserves_history_last_data_per_hour
+    )
     reserves_history_hourly = reserves_history[reserves_history_last_data_per_hour_mask]
     reserves_history_hourly = reserves_history_hourly.drop_duplicates(
         subset=["reserve_name", "datetime"]
@@ -262,8 +294,43 @@ def convert_units_and_get_hourly_granularity(
         logger.log(
             f"      --> Dropped {len(reserves_history) - len(reserves_history_hourly)} rows when getting the hour granularity"
         )
-        logger.log(f"      -->Total of {len(reserves_history_hourly)} rows")
+        logger.log(f"      --> Total of {len(reserves_history_hourly)} rows")
     return reserves_history_hourly
+
+
+def flag_outlier_indexes(
+    reserves_data: DataFrame, column_name: str, variation_threshold: float
+) -> DataFrame:
+    """
+    Returs a dataframe similar to `reserves_data` with an extra column
+    that flags the outliers with False.
+
+    Args:
+        reserves_data (DataFrame): The dataframe containing the index outliers
+        column_name (str): The column of reserves_data to process
+        variation_threshold (float): The maximum delta between two consecutive values above which
+            the next data is considered as an outlier.
+        fill_values (bool, default to True):
+    Returns:
+        DataFrame: The reserves_data dataframe with an extra column named `is_not_outlier_{column_name}`
+            that flags outliers.
+    """
+    fixed_reserves_data = reserves_data.sort_values("timestamp").reset_index(drop=True)
+    n = len(fixed_reserves_data)
+    index_data = fixed_reserves_data[column_name]
+    filter_mask = np.ones(n, dtype=bool)
+    last_valid_value = index_data[0]
+    for current_position in range(n - 1):
+        current_value = index_data[current_position]
+        if (current_value < last_valid_value) or (
+            abs(current_value - last_valid_value) > variation_threshold
+        ):
+            filter_mask[current_position] = False
+        else:
+            last_valid_value = current_value
+
+    fixed_reserves_data[f"is_not_outlier_{column_name}"] = filter_mask
+    return fixed_reserves_data
 
 
 def fill_missing_data(

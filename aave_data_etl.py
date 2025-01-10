@@ -8,7 +8,8 @@ from datetime import datetime, timezone, timedelta
 
 from src.reserves_features.reserves_features import (
     fetch_reserves_data,
-    convert_units_and_get_hourly_granularity,
+    convert_units,
+    get_hourly_granularity,
     fill_missing_data,
 )
 
@@ -29,12 +30,12 @@ AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
 
 
 # Run Parameters
-output_path = "aave-data/data-prod/aave-v2/reserves-features/"
+output_path = "aave-data/data-prod/aave-v2-fixed/reserves-features-fixed/"
 file_name = "reserves_history_hourly_selected_assets_completed"
 version_2 = True
 max_queries_number = 300
-year = 2023
-months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+year = 2021
+months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 client_s3 = boto3.client(
     "s3",
@@ -69,14 +70,14 @@ for month in months_to_extract:
         timestamp_max=timestamp_max,
     )
 
-    logger.log("   [2] - Cleaning reserves_table dataset (units and granularity)...")
-    reserves_history_hourly = convert_units_and_get_hourly_granularity(
+    logger.log("   [2] - Cleaning dataframe and selecting main assets...")
+
+    reserves_history = convert_units(
         reserves_table=reserves_table,
         version_2=version_2,
         logger=logger,
     )
 
-    logger.log("   [3] - Selecting main assets...")
     assets_list = [
         "Wrapped Ether",
         "Wrapped BTC",
@@ -86,9 +87,18 @@ for month in months_to_extract:
         "Tether USD",
         "Aave Token",
     ]
-    reserves_history_hourly_selected_assets = reserves_history_hourly[
-        reserves_history_hourly.reserve_name.isin(assets_list)
+    reserves_history_selected_assets = reserves_history[
+        reserves_history.reserve_name.isin(assets_list)
     ]
+
+    logger.log("   [3] - Getting hourly granularity...")
+
+    reserves_history_hourly_selected_assets = get_hourly_granularity(
+        reserves_table=reserves_history_selected_assets,
+        logger=logger,
+        version_2=version_2,
+        verbose=True,
+    )
 
     logger.log("   [4] - Filling the missing rows with the latest available data...")
     reserves_history_hourly_selected_assets_completed = fill_missing_data(
