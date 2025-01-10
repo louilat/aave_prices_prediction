@@ -17,13 +17,13 @@ api_endpoint_v2 = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/
 
 
 outliers_index_threshold = {
-    "Wrapped Ether": 2.5e-3,
-    "Wrapped BTC": 2.5e-3,
-    "USD Coin": 2.5e-3,
+    "Wrapped Ether": 5e-3,
+    "Wrapped BTC": 5e-3,
+    "USD Coin": 5e-3,
     "Dai Stablecoin": 2.5e-3,
-    "Wrapped liquid staked Ether 2.0": 2.5e-3,
-    "Tether USD": 2.5e-3,
-    "Aave Token": 2.5e-3,
+    "Wrapped liquid staked Ether 2.0": 5e-3,
+    "Tether USD": 5e-3,
+    "Aave Token": 5e-3,
 }
 
 
@@ -299,7 +299,11 @@ def get_hourly_granularity(
 
 
 def flag_outlier_indexes(
-    reserves_data: DataFrame, column_name: str, variation_threshold: float
+    reserves_data: DataFrame,
+    column_name: str,
+    variation_threshold: float,
+    start: int = 1,
+    force: bool = False,
 ) -> DataFrame:
     """
     Returs a dataframe similar to `reserves_data` with an extra column
@@ -316,11 +320,21 @@ def flag_outlier_indexes(
             that flags outliers.
     """
     fixed_reserves_data = reserves_data.sort_values("timestamp").reset_index(drop=True)
+    if start >= 7:
+        return flag_outlier_indexes(
+            reserves_data,
+            column_name,
+            variation_threshold,
+            start=0,
+            force=True,
+        )
+
     n = len(fixed_reserves_data)
     index_data = fixed_reserves_data[column_name]
     filter_mask = np.ones(n, dtype=bool)
-    last_valid_value = index_data[0]
-    for current_position in range(n - 1):
+    filter_mask[:start] = False
+    last_valid_value = index_data[start]
+    for current_position in range(start + 1, n):
         current_value = index_data[current_position]
         if (current_value < last_valid_value) or (
             abs(current_value - last_valid_value) > variation_threshold
@@ -329,8 +343,18 @@ def flag_outlier_indexes(
         else:
             last_valid_value = current_value
 
-    fixed_reserves_data[f"is_not_outlier_{column_name}"] = filter_mask
-    return fixed_reserves_data
+    # Remove
+    if np.sum(filter_mask) > 15 or force:
+        fixed_reserves_data[f"is_not_outlier_{column_name}"] = filter_mask
+        return fixed_reserves_data
+    else:
+        return flag_outlier_indexes(
+            reserves_data,
+            column_name,
+            variation_threshold,
+            start=start + 1,
+            force=False,
+        )
 
 
 def fill_missing_data(

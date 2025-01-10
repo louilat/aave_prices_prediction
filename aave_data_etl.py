@@ -34,8 +34,18 @@ output_path = "aave-data/data-prod/aave-v2-fixed/reserves-features-fixed/"
 file_name = "reserves_history_hourly_selected_assets_completed"
 version_2 = True
 max_queries_number = 300
-year = 2021
-months_to_extract = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+year = 2023
+months_to_extract = [3]
+
+assets_list = [
+    "Wrapped Ether",
+    "Wrapped BTC",
+    "USD Coin",
+    "Dai Stablecoin",
+    "Wrapped liquid staked Ether 2.0",
+    "Tether USD",
+    "Aave Token",
+]
 
 client_s3 = boto3.client(
     "s3",
@@ -78,15 +88,6 @@ for month in months_to_extract:
         logger=logger,
     )
 
-    assets_list = [
-        "Wrapped Ether",
-        "Wrapped BTC",
-        "USD Coin",
-        "Dai Stablecoin",
-        "Wrapped liquid staked Ether 2.0",
-        "Tether USD",
-        "Aave Token",
-    ]
     reserves_history_selected_assets = reserves_history[
         reserves_history.reserve_name.isin(assets_list)
     ]
