@@ -166,7 +166,7 @@ def extract_monthly_users_data(
     month: int,
     token: str,
     verbose: bool = False,
-) -> tuple[Logger, StringIO]:
+) -> tuple[DataFrame, StringIO]:
     logger = Logger()
     logger.log(f"Starting users balances ETL for year={year}, month={month}")
     # Computing beginning and end of month in timestamp format

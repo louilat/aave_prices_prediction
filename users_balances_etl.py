@@ -3,7 +3,7 @@ import io
 import os
 from dotenv import load_dotenv
 import concurrent.futures
-from src.users_balances.users_balances_functions import extract_monthly_users_data
+from users_balances.users_balances_extraction_functions import extract_monthly_users_data
 from src.utils.logger import Logger
 
 global_logger = Logger()
