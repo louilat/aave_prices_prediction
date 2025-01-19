@@ -5,6 +5,46 @@ import pandas as pd
 from pandas import DataFrame, NA
 
 
+def extract_events_data(
+    events_inputs_path: str, year: int, month: int
+) -> tuple[DataFrame, DataFrame]:
+    """
+    Fetches the events data corresponfing at `events_inputs_path` to year and month.
+
+    Args:
+        events_inputs_path (str):
+        year (int): The year of the events snapshot date
+        month (int): The month of the events snapshot date
+    Returns:
+        DataFrame: The concatenated norrow/deposit/repay/redeemUnderlying events dataframes
+        DataFrame: The liquidations events dataframe
+    """
+    events_list = ["borrow", "deposit", "repay", "redeemUnderlying", "liquidationCall"]
+    events_data = dict()
+
+    for event_name in events_list:
+        month_event_path = (
+            events_inputs_path
+            + f"{event_name}/"
+            + f"events_data_{event_name}_{year}-{month}.csv"
+        )
+        monthly_event_data = pd.read_csv(month_event_path)
+        events_data.update({event_name: monthly_event_data})
+
+    combined_interaction_events = pd.concat(
+        (
+            events_data["borrow"],
+            events_data["deposit"],
+            events_data["repay"],
+            events_data["redeemUnderlying"],
+        )
+    )
+
+    assert len(combined_interaction_events.action.unique().tolist()) == 4
+    
+    return combined_interaction_events, events_data["liquidationCall"]
+
+
 def combine_atokens_vtokens_balances(
     atokens: DataFrame, vtokens: DataFrame
 ) -> DataFrame:

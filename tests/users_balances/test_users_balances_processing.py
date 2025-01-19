@@ -4,7 +4,7 @@ import pandas as pd
 from pandas import DataFrame
 
 
-from ...src.users_balances.users_balances_processing import (
+from ...src.users_balances.users_balances_processing_functions import (
     combine_atokens_vtokens_balances,
     clean_events,
     clean_liquidation_events,
