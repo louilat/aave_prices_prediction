@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 import io
-from events.events_extraction_functions import fetch_events, clean_events_data
-from utils.logger import Logger
+from src.events.events_extraction_functions import fetch_events, clean_events_data
+from src.utils.logger import Logger
 
 logger = Logger()
 
@@ -18,13 +18,12 @@ API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
 
 # Run parameters
-output_path = "aave-data/events-dev/"
+output_path = "aave-data/data-prod/aave-v3/events/"
 file_name = "events_data"
 year = 2024
-months = [1]
+months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 version_2 = False
-# events_list = ["deposit", "borrow", "repay", "redeemUnderlying"]
-events_list = ["liquidationCall"]
+events_list = ["deposit", "borrow", "repay", "redeemUnderlying", "liquidationCall"]
 
 
 if version_2:
