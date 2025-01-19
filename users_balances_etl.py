@@ -3,7 +3,7 @@ import io
 import os
 from dotenv import load_dotenv
 import concurrent.futures
-from users_balances.users_balances_extraction_functions import (
+from src.users_balances.users_balances_extraction_functions import (
     extract_monthly_users_data,
 )
 from src.utils.logger import Logger
@@ -18,8 +18,8 @@ API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
 
 # Run Parameters
-output_path = "aave-data/experiments/"
-year = 2023
+output_path = "aave-data/data-prod/aave-v3/users-positions/"
+year = 2024
 months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 version_2 = False
 
@@ -58,9 +58,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
         month_string = future_to_month[future]
         try:
             # Extract outputs
-            result = future.result()
-            atoken_balances = result[0]
-            logs_buffer = result[1]
+            atoken_balances = future.result()
 
             # Write to s3
             csv_buffer = io.StringIO()
@@ -69,11 +67,6 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                 Body=csv_buffer.getvalue(),
                 Bucket="llatournerie",
                 Key=output_path + f"users_atoken_balances_{month_string}.csv",
-            )
-            client_s3.put_object(
-                Body=logs_buffer.getvalue(),
-                Bucket="llatournerie",
-                Key=output_path + f"logfile_{month_string}.log",
             )
         except Exception as e:
             global_logger.log(f"Generated an exeption for {month_string}")
@@ -100,9 +93,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
         month_string = future_to_month[future]
         try:
             # Extract outputs
-            result = future.result()
-            vtoken_balances = result[0]
-            logs_buffer = result[1]
+            vtoken_balances = future.result()
 
             # Write to s3
             csv_buffer = io.StringIO()
@@ -111,11 +102,6 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                 Body=csv_buffer.getvalue(),
                 Bucket="llatournerie",
                 Key=output_path + f"users_vtoken_balances_{month_string}.csv",
-            )
-            client_s3.put_object(
-                Body=logs_buffer.getvalue(),
-                Bucket="llatournerie",
-                Key=output_path + f"logfile_{month_string}.log",
             )
         except Exception as e:
             global_logger.log(f"Generated an exeption for {month_string}")

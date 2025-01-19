@@ -7,6 +7,8 @@ from io import StringIO
 from ..utils.utils import run_query
 from ..utils.logger import Logger
 
+logger = Logger()
+
 
 def run_query_users_balances_protocol_v3(
     api_endpoint: str,
@@ -166,8 +168,7 @@ def extract_monthly_users_data(
     month: int,
     token: str,
     verbose: bool = False,
-) -> tuple[DataFrame, StringIO]:
-    logger = Logger()
+) -> DataFrame:
     logger.log(f"Starting users balances ETL for year={year}, month={month}")
     # Computing beginning and end of month in timestamp format
     start_datetime = datetime(year, month, 1)
@@ -201,4 +202,4 @@ def extract_monthly_users_data(
 
     logger.log("Done!")
 
-    return clean_users_balances, logger.buffer
+    return clean_users_balances
