@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from src.utils.logger import Logger
 from src.users_balances.users_balances_processing_functions import (
     extract_events_data,
-    combine_atokens_vtokens_balances,
+    clean_atokens_vtokens_balances,
     clean_events,
     clean_liquidation_events,
     match_balances_with_events,
@@ -61,8 +61,9 @@ for month in months:
         month_events_path, year, month
     )
 
-    logger.log("   --> Combining atokens and vtokens...")
-    clean_balances = combine_atokens_vtokens_balances(atokens=atokens, vtokens=vtokens)
+    logger.log("   --> Clean atokens and vtokens...")
+    clean_atoken_balances = clean_atokens_vtokens_balances(token_balances=atokens)
+    clean_vtoken_balances = clean_atokens_vtokens_balances(token_balances=vtokens)
 
     logger.log("   --> Cleaning interaction events...")
     interaction_events_clean = clean_events(events=interaction_events)
@@ -71,24 +72,65 @@ for month in months:
     liquidation_events_clean = clean_liquidation_events(liquidations=liquidation_events)
 
     logger.log("   --> Matching balances and events...")
-    combined_data = match_balances_with_events(
-        combined_atokens_vtokens_balances=clean_balances,
+    combined_atoken_data = match_balances_with_events(
+        combined_atokens_vtokens_balances=clean_atoken_balances,
         clean_interaction_events=interaction_events_clean,
         clean_liquidation_events=liquidation_events_clean,
     )
 
-    missing_events_ratio = len(combined_data[combined_data.action.isna()]) / len(
-        combined_data
+    atokens_weird_event_matching = len(
+        combined_atoken_data[combined_atoken_data.action.isin(["Borrow", "Repay"])]
+    ) / len(combined_atoken_data)
+
+    print(
+        f"   INFO: Weird events matching for atoken balances: {atokens_weird_event_matching}"
     )
-    logger.log(f"   INFO: Fraction of unmatched balances: {missing_events_ratio}")
+
+    combined_vtoken_data = match_balances_with_events(
+        combined_atokens_vtokens_balances=clean_vtoken_balances,
+        clean_interaction_events=interaction_events_clean,
+        clean_liquidation_events=liquidation_events_clean,
+    )
+
+    vtokens_weird_event_matching = len(
+        combined_vtoken_data[
+            combined_vtoken_data.action.isin(["Supply", "RedeemUnderlying"])
+        ]
+    ) / len(combined_vtoken_data)
+
+    print(
+        f"   INFO: Weird events matching for vtoken balances: {vtokens_weird_event_matching}"
+    )
+
+    missing_a_events_ratio = len(
+        combined_atoken_data[combined_atoken_data.action.isna()]
+    ) / len(combined_atoken_data)
+    logger.log(
+        f"   INFO: Fraction of unmatched balances for atoken balances: {missing_a_events_ratio}"
+    )
+
+    missing_v_events_ratio = len(
+        combined_vtoken_data[combined_vtoken_data.action.isna()]
+    ) / len(combined_vtoken_data)
+    logger.log(
+        f"   INFO: Fraction of unmatched balances for vtoken balances: {missing_v_events_ratio}"
+    )
 
     logger.log("   --> Uploading output to s3...")
     csv_buffer = io.StringIO()
-    combined_data.to_csv(csv_buffer, index=False)
+    combined_atoken_data.to_csv(csv_buffer, index=False)
     client_s3.put_object(
         Body=csv_buffer.getvalue(),
         Bucket="llatournerie",
-        Key=output_path + f"combined_balances_{year}-{month}.csv",
+        Key=output_path + f"combined_atoken_balances_{year}-{month}.csv",
+    )
+
+    csv_buffer = io.StringIO()
+    combined_vtoken_data.to_csv(csv_buffer, index=False)
+    client_s3.put_object(
+        Body=csv_buffer.getvalue(),
+        Bucket="llatournerie",
+        Key=output_path + f"combined_vtoken_balances_{year}-{month}.csv",
     )
 
 logger.log("Done!")

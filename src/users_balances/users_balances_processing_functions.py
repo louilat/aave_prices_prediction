@@ -41,70 +41,40 @@ def extract_events_data(
     )
 
     assert len(combined_interaction_events.action.unique().tolist()) == 4
-    
+
     return combined_interaction_events, events_data["liquidationCall"]
 
 
-def combine_atokens_vtokens_balances(
-    atokens: DataFrame, vtokens: DataFrame
-) -> DataFrame:
+def clean_atokens_vtokens_balances(token_balances: DataFrame) -> DataFrame:
     """
-    Merges the atokens balances raw data with the vtokens raw data.
+    Cleans the balances raw data for either atokens or vtokens raw data.
 
     Args:
-        atokens (DataFrame): Concatenated outputs from the `users_balances_etl` (atoken_balances)
-        vtokens (DataFrame): Concatenated outputs from the `users_balances_etl` (vtoken_balances)
+        token_balances (DataFrame): Concatenated outputs from the `users_balances_etl` (atoken_balances)
+
     Returns:
-        DataFrame: The combined atokens and vtokens balances.
+        DataFrame: The clean atokens or vtokens balances.
     """
-    # Align columns of atokens and vtokens
-    atokens_ = atokens.rename(
-        columns={
-            "Index": "a_index",
-        }
-    )
-    vtokens_ = vtokens.rename(
-        columns={
-            "Index": "v_index",
-            "user_current_variable_debt": "user_current_vtoken_balance",
-            "user_scaled_variable_debt": "user_scaled_vtoken_balance",
-        }
-    )
 
-    combined_data = atokens_.merge(
-        vtokens_[
-            [
-                "id",
-                "pool",
-                "user_address",
-                "timestamp",
-                "reserve_name",
-                "reserve_decimals",
-                "usage_as_collateral_enabled",
-                "v_index",
-                "user_current_vtoken_balance",
-                "user_scaled_vtoken_balance",
-            ]
-        ],
-        how="outer",
-        on=[
-            "id",
-            "pool",
-            "user_address",
-            "timestamp",
-            "reserve_name",
-            "reserve_decimals",
-            "usage_as_collateral_enabled",
-        ],
-    )
+    current_balance_column_name = "user_current_atoken_balance"
 
-    combined_data["txHash"] = combined_data.id.str[126:]
+    clean_tokens_balances = token_balances.copy()
 
-    assert len(combined_data.drop_duplicates("id")) == len(
-        combined_data
+    if "user_current_variable_debt" in clean_tokens_balances.columns.tolist():
+        current_balance_column_name = "user_current_vtoken_balance"
+        clean_tokens_balances = clean_tokens_balances.rename(
+            columns={
+                "user_current_variable_debt": "user_current_vtoken_balance",
+            }
+        )
+
+    clean_tokens_balances["txHash"] = clean_tokens_balances.id.str[126:]
+
+    assert len(clean_tokens_balances.drop_duplicates("id")) == len(
+        clean_tokens_balances
     ), "Same transaction appears in several rows"
 
-    combined_data = combined_data[
+    clean_tokens_balances = clean_tokens_balances[
         [
             "id",
             "user_address",
@@ -113,12 +83,11 @@ def combine_atokens_vtokens_balances(
             "reserve_decimals",
             "reserve_name",
             "usage_as_collateral_enabled",
-            "user_current_atoken_balance",
-            "user_current_vtoken_balance",
+            current_balance_column_name,
         ]
     ]
 
-    return combined_data
+    return clean_tokens_balances
 
 
 def clean_events(events: DataFrame) -> DataFrame:
@@ -156,7 +125,9 @@ def clean_events(events: DataFrame) -> DataFrame:
         choicelist=[clean_events.amount, -clean_events.amount],
         default=0,
     )
-    tx_count = events.groupby("txHash")["action"].transform("count")
+    tx_count = events.groupby(
+        ["txHash", "reserve_name", "timestamp", "pool", "user_id"]
+    )["action"].transform("count")
     multiple_events = clean_events[tx_count > 1]
 
     multiple_events = multiple_events.groupby(
@@ -248,7 +219,7 @@ def clean_liquidation_events(liquidations: DataFrame) -> DataFrame:
     )
     assert len(clean_liquidations) == 4 * len(liquidations)
 
-    return clean_liquidations
+    return clean_liquidations.drop_duplicates()
 
 
 def match_balances_with_events(
@@ -270,10 +241,19 @@ def match_balances_with_events(
         combined_atokens_vtokens_balances.id.str[126:]
     )
     all_clean_events = pd.concat((clean_interaction_events, clean_liquidation_events))
+
+    all_clean_events = all_clean_events.drop_duplicates(
+        ["txHash", "user_address", "reserve_name", "timestamp", "pool"]
+    )  # To avoid duplicates when an event appears both in interaction events and liquidation events
+
     balances_with_events = combined_atokens_vtokens_balances.merge(
         all_clean_events,
         how="left",
         on=["txHash", "user_address", "reserve_name", "timestamp", "pool"],
     )
+
+    assert len(combined_atokens_vtokens_balances) == len(
+        balances_with_events
+    ), "Multiple events found for 1 balance snapshot"
 
     return balances_with_events

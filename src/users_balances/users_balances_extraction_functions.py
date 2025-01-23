@@ -2,7 +2,7 @@
 
 import pandas as pd
 from pandas import DataFrame
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from ..utils.utils import run_query
 from ..utils.logger import Logger
@@ -171,9 +171,11 @@ def extract_monthly_users_data(
 ) -> DataFrame:
     logger.log(f"Starting users balances ETL for year={year}, month={month}")
     # Computing beginning and end of month in timestamp format
-    start_datetime = datetime(year, month, 1)
+    start_datetime = datetime(year, month, 1, tzinfo=timezone.utc)
     end_datetime = start_datetime + timedelta(days=32)
-    end_datetime = datetime(end_datetime.year, end_datetime.month, 1)
+    end_datetime = datetime(
+        end_datetime.year, end_datetime.month, 1, tzinfo=timezone.utc
+    )
     timestamp_min = start_datetime.timestamp()
     timestamp_max = end_datetime.timestamp()
     if verbose:
