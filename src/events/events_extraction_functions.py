@@ -7,10 +7,17 @@ from pandas import DataFrame
 
 
 def extract_deposit(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        event_keyword = "deposits"
+        pool_keyword = "lendingPool"
+    else:
+        event_keyword = "supplies"
+        pool_keyword = "pool"
+    
     query = f"""\u007b
-        supplies(
+        {event_keyword}(
             first: {size},
             skip: {offset},
             orderBy: timestamp,
@@ -24,7 +31,7 @@ def extract_deposit(
             txHash
             action
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             user \u007b
                 id
@@ -42,12 +49,16 @@ def extract_deposit(
             timestamp
         \u007d
     \u007d"""
-    return run_query(api=api_endpoint, query=query)["data"]["supplies"]
+    return run_query(api=api_endpoint, query=query)["data"][event_keyword]
 
 
 def extract_borrow(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+    else:
+        pool_keyword = "pool"
     query = f"""\u007b
         borrows(
             first: {size},
@@ -63,7 +74,7 @@ def extract_borrow(
             txHash
             action
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             user \u007b
                 id
@@ -85,8 +96,12 @@ def extract_borrow(
 
 
 def extract_redeemUnderlying(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+    else:
+        pool_keyword = "pool"
     query = f"""\u007b
         redeemUnderlyings(
             first: {size},
@@ -102,7 +117,7 @@ def extract_redeemUnderlying(
             txHash
             action
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             user \u007b
                 id
@@ -124,8 +139,12 @@ def extract_redeemUnderlying(
 
 
 def extract_usageAsCollateral(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+    else:
+        pool_keyword = "pool"
     query = f"""\u007b
         usageAsCollaterals(
             first: {size},
@@ -141,7 +160,7 @@ def extract_usageAsCollateral(
             txHash
             action
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             user \u007b
                 id
@@ -160,8 +179,14 @@ def extract_usageAsCollateral(
 
 
 def extract_repay(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+        use_atokens = ""
+    else:
+        pool_keyword = "pool"
+        use_atokens = "useATokens"
     query = f"""\u007b
         repays(
             first: {size},
@@ -177,7 +202,7 @@ def extract_repay(
             txHash
             action
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             user \u007b
                 id
@@ -191,7 +216,7 @@ def extract_repay(
                 decimals
             \u007d
             amount
-            useATokens
+            {use_atokens}
             assetPriceUSD
             timestamp
         \u007d
@@ -200,8 +225,12 @@ def extract_repay(
 
 
 def extract_flashloan(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+    else:
+        pool_keyword = "pool"
     query = f"""\u007b
         flashLoans(
             first: {size},
@@ -218,7 +247,7 @@ def extract_flashloan(
                 id
             \u007d
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             reserve \u007b
                 underlyingAsset
@@ -237,8 +266,12 @@ def extract_flashloan(
 
 
 def extract_liquidationCall(
-    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int
+    api_endpoint: str, size: int, offset: int, timestamp_min: int, timestamp_max: int, version_2: bool = False,
 ) -> dict:
+    if version_2:
+        pool_keyword = "lendingPool"
+    else:
+        pool_keyword = "pool"
     query = f"""\u007b
         liquidationCalls(
             first: {size},
@@ -257,7 +290,7 @@ def extract_liquidationCall(
                 id
             \u007d
             pool \u007b
-                pool
+                {pool_keyword}
             \u007d
             collateralReserve \u007b
                 underlyingAsset
@@ -287,6 +320,7 @@ def fetch_events(
     timestamp_min: int,
     timestamp_max: int,
     event: str,
+    version_2: bool = False,
     verbose: bool = False,
 ) -> DataFrame:
     event_functions = {
@@ -315,6 +349,7 @@ def fetch_events(
             offset=iter * size,
             timestamp_min=timestamp_min,
             timestamp_max=timestamp_max,
+            version_2 = version_2,
         )
         current_events = pd.json_normalize(query_output)
         if len(current_events) == 0:
@@ -329,6 +364,7 @@ def clean_events_data(
 ) -> DataFrame:
     rename_columns = {
         "pool.pool": "pool",
+        "pool.lendingPool": "pool",
         "user.id": "user_id",
         "caller.id": "caller_id",
         "to.id": "to_id",

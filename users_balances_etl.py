@@ -18,10 +18,10 @@ API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
 
 # Run Parameters
-output_path = "aave-data/data-prod/aave-v3/users-positions/"
+output_path = "aave-data/data-prod/aave-v2/users-positions/"
 year = 2024
 months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-version_2 = False
+version_2 = True
 
 if version_2:
     api_endpoint = f"https://gateway.thegraph.com/api/{API_SECRET_KEY}/subgraphs/id/8wR23o1zkS4gpLqLNU4kG3JHYVucqGyopL5utGxP2q1N"
@@ -49,6 +49,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             year,
             month,
             "atoken",
+            version_2,
             True,
         ): f"{year}-{month}"
         for month in months
@@ -69,7 +70,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                 Key=output_path + f"users_atoken_balances_{month_string}.csv",
             )
         except Exception as e:
-            global_logger.log(f"Generated an exeption for {month_string}")
+            global_logger.log(f"Generated an exeption for {month_string}: {e}")
 
 
 global_logger.log("Extracting VTokens data...")
@@ -84,6 +85,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             year,
             month,
             "vtoken",
+            version_2,
             True,
         ): f"{year}-{month}"
         for month in months
@@ -104,7 +106,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                 Key=output_path + f"users_vtoken_balances_{month_string}.csv",
             )
         except Exception as e:
-            global_logger.log(f"Generated an exeption for {month_string}")
+            global_logger.log(f"Generated an exeption for {month_string}: {e}")
 
 client_s3.put_object(
     Body=global_logger.buffer.getvalue(),

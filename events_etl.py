@@ -18,11 +18,11 @@ API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
 
 # Run parameters
-output_path = "aave-data/data-prod/aave-v3/events/"
+output_path = "aave-data/data-prod/aave-v2/events/"
 file_name = "events_data"
 year = 2024
 months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-version_2 = False
+version_2 = True
 events_list = ["deposit", "borrow", "repay", "redeemUnderlying", "liquidationCall"]
 
 
@@ -62,6 +62,7 @@ for month in months:
             timestamp_min=timestamp_min,
             timestamp_max=timestamp_max,
             event=event_name,
+            version_2=version_2,
             verbose=True,
         )
 

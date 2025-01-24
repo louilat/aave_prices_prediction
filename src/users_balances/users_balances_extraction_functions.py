@@ -17,7 +17,12 @@ def run_query_users_balances_protocol_v3(
     timestamp_min: int,
     timestamp_max: int,
     token: str,
+    version_2: bool = False,
 ) -> dict:
+    if not version_2:
+        pool_keyword = "pool \u007b pool \u007d"
+    else: 
+        pool_keyword = "pool \u007b lendingPool  \u007d"
     if token == "atoken":
         query_name = "atokenBalanceHistoryItems"
         scaled_balance = "scaledATokenBalance"
@@ -55,9 +60,7 @@ def run_query_users_balances_protocol_v3(
                 user \u007b
                     id
                 \u007d
-                pool \u007b
-                    pool
-                \u007d
+                {pool_keyword}
             \u007d
         \u007d
     \u007d
@@ -72,6 +75,7 @@ def fetch_users_balances(
     timestamp_min: int,
     timestamp_max: int,
     token: str,
+    version_2: bool = False,
     verbose: bool = False,
 ):
     if token == "atoken":
@@ -94,6 +98,7 @@ def fetch_users_balances(
             timestamp_min=timestamp_min,
             timestamp_max=timestamp_max,
             token=token,
+            version_2=version_2,
         )
         current_balances = pd.json_normalize(query_output["data"][response_key])
         if len(current_balances) == 0:
@@ -108,6 +113,7 @@ def clean_users_balances_data(users_balances: DataFrame, token: str) -> DataFram
         columns={
             "userReserve.user.id": "user_address",
             "userReserve.pool.pool": "pool",
+            "userReserve.pool.lendingPool": "pool",
             "userReserve.reserve.decimals": "reserve_decimals",
             "userReserve.reserve.name": "reserve_name",
             "userReserve.reserve.usageAsCollateralEnabled": "usage_as_collateral_enabled",
@@ -167,6 +173,7 @@ def extract_monthly_users_data(
     year: int,
     month: int,
     token: str,
+    version_2: bool = False,
     verbose: bool = False,
 ) -> DataFrame:
     logger.log(f"Starting users balances ETL for year={year}, month={month}")
@@ -194,6 +201,7 @@ def extract_monthly_users_data(
         timestamp_min=timestamp_min,
         timestamp_max=timestamp_max,
         token=token,
+        version_2=version_2,
         verbose=verbose,
     )
 
