@@ -5,7 +5,7 @@ from pandas import DataFrame
 
 
 from ...src.users_balances.users_balances_processing_functions import (
-    combine_atokens_vtokens_balances,
+    clean_atokens_vtokens_balances,
     clean_events,
     clean_liquidation_events,
     match_balances_with_events,
@@ -467,7 +467,7 @@ def vtokens():
 
 @pytest.fixture
 def balances(atokens, vtokens):
-    return combine_atokens_vtokens_balances(atokens, vtokens)
+    return clean_atokens_vtokens_balances(vtokens)
 
 
 @pytest.fixture
@@ -809,9 +809,9 @@ def liquidations_events():
     )
 
 
-def test_combine_atokens_vtokens_balances(atokens, vtokens):
-    combined_av_balances = combine_atokens_vtokens_balances(atokens, vtokens)
-    assert combined_av_balances.columns.tolist() == [
+def test_clean_atokens_vtokens_balances(atokens):
+    combined_abalances = clean_atokens_vtokens_balances(atokens)
+    assert combined_abalances.columns.tolist() == [
         "id",
         "user_address",
         "timestamp",
@@ -820,90 +820,46 @@ def test_combine_atokens_vtokens_balances(atokens, vtokens):
         "reserve_name",
         "usage_as_collateral_enabled",
         "user_current_atoken_balance",
-        "user_current_vtoken_balance",
     ]
-    assert len(combined_av_balances) == 39
+    assert len(combined_abalances) == len(atokens)
     assert len(atokens.user_address.unique().tolist()) == len(
-        combined_av_balances[
-            combined_av_balances.user_current_atoken_balance.notna()
-        ].drop_duplicates("user_address")
-    )
-    assert len(vtokens.user_address.unique().tolist()) == len(
-        combined_av_balances[
-            combined_av_balances.user_current_vtoken_balance.notna()
+        combined_abalances[
+            combined_abalances.user_current_atoken_balance.notna()
         ].drop_duplicates("user_address")
     )
 
-    combined_av_balances = combined_av_balances.set_index(
+    combined_abalances = combined_abalances.set_index(
         ["user_address", "timestamp", "reserve_name"]
     )
 
     assert (
-        combined_av_balances.loc[
+        combined_abalances.loc[
             ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704744455, "Wrapped BTC"),
             "user_current_atoken_balance",
         ]
         == 0.00131934
     )
     assert (
-        combined_av_balances.loc[
+        combined_abalances.loc[
             ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704744455, "Tether USD"),
             "user_current_atoken_balance",
         ]
         == 78113.96592
     )
     assert (
-        combined_av_balances.loc[
+        combined_abalances.loc[
             ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704654371, "Wrapped BTC"),
             "user_current_atoken_balance",
         ]
         == 1.67214987
     )
-    assert pd.isna(
-        combined_av_balances.loc[
-            ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704744455, "Wrapped BTC"),
-            "user_current_vtoken_balance",
-        ]
-    )
-    assert pd.isna(
-        combined_av_balances.loc[
-            ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704744455, "Tether USD"),
-            "user_current_vtoken_balance",
-        ]
-    )
-    assert pd.isna(
-        combined_av_balances.loc[
-            ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704654371, "Wrapped BTC"),
-            "user_current_vtoken_balance",
-        ]
-    )
 
     assert (
-        combined_av_balances.loc[
+        combined_abalances.loc[
             ("0x7369e5c97db67c30f64ae2924728c952848713b6", 1704069563, "Aave Token"),
             "user_current_atoken_balance",
         ]
         == 76.235692
-    )
-    assert pd.isna(
-        combined_av_balances.loc[
-            ("0x7369e5c97db67c30f64ae2924728c952848713b6", 1704069563, "Aave Token"),
-            "user_current_vtoken_balance",
-        ]
-    )
-
-    assert (
-        combined_av_balances.loc[
-            ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704774407, "Tether USD"),
-            "user_current_vtoken_balance",
-        ]
-        == 13902.526748
-    )
-    assert pd.isna(
-        combined_av_balances.loc[
-            ("0x6642f3f6b05e5b98a32c5ad21db13bc607c53bb4", 1704774407, "Tether USD"),
-            "user_current_atoken_balance",
-        ]
     )
 
 
@@ -1013,7 +969,7 @@ def test_clean_events(events):
             ),
             "action",
         ]
-        == "Multiple"
+        == "Repay"
     )
     assert (
         clean_interaction_events.loc[
@@ -1084,7 +1040,6 @@ def test_match_balances_with_events(balances, events, liquidations_events):
         "reserve_decimals",
         "reserve_name",
         "usage_as_collateral_enabled",
-        "user_current_atoken_balance",
         "user_current_vtoken_balance",
         "txHash",
         "action",
@@ -1096,18 +1051,6 @@ def test_match_balances_with_events(balances, events, liquidations_events):
 
     matched_balances_events = matched_balances_events.set_index(
         ["user_address", "reserve_name", "txHash"]
-    )
-
-    assert (
-        matched_balances_events.loc[
-            (
-                "0x7369e5c97db67c30f64ae2924728c952848713b6",
-                "Aave Token",
-                "0x91cb98262ca0e6aa74b8787de5e860dca1ed5a06f7f88f0c2c0cdae5ba7914cd",
-            ),
-            "a_amount",
-        ]
-        == 76.235692
     )
     assert (
         matched_balances_events.loc[
@@ -1140,5 +1083,5 @@ def test_match_balances_with_events(balances, events, liquidations_events):
             ),
             "action",
         ]
-        == "Multiple"
+        == "Repay"
     )
