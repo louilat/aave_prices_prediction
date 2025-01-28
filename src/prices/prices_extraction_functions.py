@@ -37,6 +37,7 @@ def run_query_prices_v3(
                 \u007d
             ) \u007b
                 id
+                hours
                 timestamp
                 blockNumber
                 market \u007b
@@ -113,11 +114,13 @@ def clean_prices_data(prices_raw_data: DataFrame) -> DataFrame:
             "market.name": "reserve_name",
             "protocol.name": "protocol_name",
             "protocol.protocol": "protocol",
+            "timestamp": "snapshot_timestamp",
+            "hours": "timestamp_hours"
         }
     )
 
     clean_prices["datetime"] = pd.to_datetime(
-        clean_prices.timestamp, utc=True, unit="s"
+        clean_prices.timestamp_hours, utc=True, unit="h"
     )
 
     reserve_names_dict = {

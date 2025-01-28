@@ -30,9 +30,9 @@ client_s3 = boto3.client(
 )
 
 # Run parameters
-balances_inputs_path = "aave-data/data-prod/aave-v3/users-positions/"
-events_inputs_path = "aave-data/data-prod/aave-v3/events/"
-output_path = "aave-data/data-prod/aave-v3/users-positions-combined/"
+balances_inputs_path = "aave-data/data-prod/aave-v2/users-positions/"
+events_inputs_path = "aave-data/data-prod/aave-v2/events/"
+output_path = "aave-data/data-prod/aave-v2/users-positions-combined/"
 year = 2024
 months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
